@@ -223,11 +223,49 @@ for x in content.split(','):
 code = IntcodeComputer(program)
 
 
+def posToNum(y, x):
+    global dim
+    return y*dim + x
+
+def numToPos(n):
+    global dim
+    return [int(n/dim), n % dim]
+
+def posToDirection(pStart, pEnd):
+
+    if pStart[0] - 1 == pEnd[0] and pStart[1] == pEnd[1]:
+        # N
+        return 1
+    elif pStart[0] + 1 == pEnd[0] and pStart[1] == pEnd[1]:
+        # S
+        return 2
+    elif pStart[0] == pEnd[0] and pStart[1] - 1 == pEnd[1]:
+        # W
+        return 3
+    elif pStart[0] == pEnd[0] and pStart[1] + 1 == pEnd[1]:
+        # E
+        return 4
+    else:
+        print("Invalid direction", pStart, pEnd)
+        exit()
+
+
 print("Part 1:")
 
-grid = np.zeros([200,200], dtype=np.uint8)
+dim = 50
 
-pos = (100,100)
+grid = np.zeros([dim,dim], dtype=np.uint8)
+
+start_pos = [int(dim/2), int(dim/2)]
+oxygen_pos = [-1, -1]
+
+pos = [start_pos[0], start_pos[1]]
+
+plt.figure()
+
+#parent = np.array([dim*dim, 1], dtype=np.uint16)
+parent = np.arange(dim*dim, dtype=np.uint16)
+parent.fill(65535)
 
 while not code.finished:
 
@@ -236,111 +274,161 @@ while not code.finished:
         code.step()
 
 
-    # random select direction
-    direction = random.randint(0,3)
+    y = pos[0]
+    x = pos[1]
+
+    # build list which hold unvisited neighbors
+    unexplored_neighbors = []
+    if grid[y-1, x] == 0:
+        # N
+        unexplored_neighbors.append(posToNum(y-1, x))
+        #parent[posToNum(y-1, x)] = posToNum(y, x)
+
+    if grid[y+1, x] == 0:
+        # S
+        #parent[posToNum(y+1, x)] = posToNum(y, x)
+        unexplored_neighbors.append(posToNum(y+1, x))
+
+    if grid[y, x-1] == 0:
+        # W
+        #parent[posToNum(y, x-1)] = posToNum(y, x)
+        unexplored_neighbors.append(posToNum(y, x-1))
+
+    if grid[y, x+1] == 0:
+        # E
+        #parent[posToNum(y, x+1)] = posToNum(y, x)
+        unexplored_neighbors.append(posToNum(y, x+1))
+
+
+    if len(unexplored_neighbors) > 0:
+        #go to first child
+        p = numToPos(unexplored_neighbors[0])
+
+        # set parent
+        parent[unexplored_neighbors[0]] = posToNum(y, x)
+
+        # convert to direction
+        direction = posToDirection(pos ,p)
+
+    else:
+        # we need to go back
+        mp = parent[posToNum(y, x)]
+        if mp == 65535:
+            print("Back to origin")
+            break
+        direction = posToDirection(pos ,numToPos(mp))
+
+
+
     code.inDate = direction
 
-    print('->', direction)
+    #print('->', direction)
 
     while code.getOpCode() != 4 and not code.finished:
         code.step()
 
     answer = code.step()
 
-    print('<-', answer)
+    # set current position as good
+    grid[pos[0], pos[1]] = 2
 
-exit()
+    new_pos = [pos[0], pos[1]]
 
-plt.figure()
-# plt.subplot(2,1,1)
-# plt.imshow(color_grid, cmap='binary')
-# plt.title('Panel Color')
-
-#plt.subplot(2,1,2)
-plt.imshow(grid)
-plt.title('Number of visits')
-
-plt.savefig("13/sol1.png")
-
-print("Solution 1: ", np.sum(grid == 2))
-
-
-# part 2
-code.reset()
-
-# insert coins
-code.program[0] = 2
-
-grid = np.zeros([23,44], dtype=np.uint8)
-
-plt.figure()
-
-frame = 0
-score = 0
-last_ball_x = 1
-while not code.finished:
-
-    if code.getOpCode() == 3:
-        if frame % 10 == 0:
-            plt.imshow(grid)
-            plt.title('Frame: {} Score: {}'.format(frame, score))
-            plt.savefig("13/sol1.png")
-        frame += 1
-
-        # decide on input
-        ball = np.where(grid == 4)
-        ball_x = ball[1][0]
-
-        pad = np.where(grid == 3)
-        pad_x = pad[1][0]
-
-        dy = pad[0][0] - ball[0][0]
-
-        if last_ball_x < ball_x:
-            # ball moves right
-            if pad_x <= ball_x:
-                # -> move right
-                code.inDate = 1
-
-            if pad_x - 1 == ball_x:
-                # stay
-                code.inDate = 0
-
-            if pad_x - 1 > ball_x:
-                # move pad closer  to ball
-                code.inDate = -1
-        else:
-            # ball moves left
-            if pad_x >= ball_x:
-                # <-
-                code.inDate = -1
-
-            if ball_x - 1 == pad_x:
-                # stay
-                code.inDate = 0
-
-            if ball_x - 1 > pad_x:
-                # move pad closer  to ball
-                code.inDate = 1
-
-        if dy == 1 and pad_x == ball_x:
-            code.inDate = 0
-
-        print('ball: {} pad: {} move: {}'.format(ball_x, pad_x, code.inDate))
-
-        last_ball_x = ball_x
-
-    [x, y, t] = code.get3Ouput()
-
-    if x==-1 and y == 0:
-        score = t
-        print("Score: ", score)
-    else:
-        grid[y, x] = t
+    if 0 == answer:
+        # we hit a wall
+        y = pos[0] + (2*direction - 3 if direction < 3 else 0)
+        x = pos[1] + (2*direction - 7 if direction >= 3 else 0)
         
+        grid[y, x] = 1
+    elif 1 == answer:
+        # we good
+        new_pos[0] = pos[0] + (2*direction - 3 if direction < 3 else 0)
+        new_pos[1] = pos[1] + (2*direction - 7 if direction >= 3 else 0)
 
-# game over
+        grid[new_pos[0], new_pos[1]] = 2
+    
+    elif 2 == answer:
+        # we found it
+        new_pos[0] = pos[0] + (2*direction - 3 if direction < 3 else 0)
+        new_pos[1] = pos[1] + (2*direction - 7 if direction >= 3 else 0)
+
+        grid[new_pos[0], new_pos[1]] = 4
+        oxygen_pos = [new_pos[0], new_pos[1]]
+        print("Found Oxygen at pos ", new_pos)
+
+        # hacky way to finish
+        # code.finished = True
+        #break
+
+    else:
+        print('Undefined return code')
+        break
+
+
+    pos[0] = new_pos[0]
+    pos[1] = new_pos[1]
+
+    # mark position as our spot
+    grid[pos[0], pos[1]] = 3
+
+
+    #print('<-', answer)
 
 plt.imshow(grid)
-plt.title('Game Over! Frame: {} Score: {}'.format(frame, score))
-plt.savefig("13/sol1.png")
+plt.title('Full Grid')
+
+plt.savefig("15/sol1.png")
+
+
+
+
+# build distance grid from oxygen point
+grid_dist = np.zeros([dim,dim], dtype=np.uint16)
+grid_dist.fill(65000)
+
+grid_dist[oxygen_pos[0], oxygen_pos[1]] = 0
+
+cur_dist = 0
+while True:
+
+    p = np.where(grid_dist == cur_dist)
+
+    if len(p[0]) == 0:
+        break
+
+    # get all points with this distance
+    for i in range(len(p[0])):
+        # check if neighbor is valid and has larger distance
+        y = p[0][i] + 1
+        x = p[1][i]
+        if grid[y, x] > 1 and grid_dist[y, x] > cur_dist + 1:
+            grid_dist[y, x] = cur_dist + 1
+
+        y = p[0][i] - 1
+        x = p[1][i]
+        if grid[y, x] > 1 and grid_dist[y, x] > cur_dist + 1:
+            grid_dist[y, x] = cur_dist + 1
+
+        y = p[0][i]
+        x = p[1][i] + 1
+        if grid[y, x] > 1 and grid_dist[y, x] > cur_dist + 1:
+            grid_dist[y, x] = cur_dist + 1
+
+        y = p[0][i]
+        x = p[1][i] - 1
+        if grid[y, x] > 1 and grid_dist[y, x] > cur_dist + 1:
+            grid_dist[y, x] = cur_dist + 1
+
+    cur_dist += 1
+
+
+
+# reset not set values to let the image colors scale
+grid_dist[grid_dist == 65000] = 0
+
+plt.imshow(grid_dist)
+plt.title('Distance Grid')
+plt.savefig("15/sol2.png")
+
+print("Solution 1: ", grid_dist[start_pos[0], start_pos[0]])
+print("Solution 2: ", cur_dist - 1)
