@@ -155,19 +155,9 @@ def buildDistMap(grid):
                 if (y,x) in port_jumps:
                     (y,x) = port_jumps[(y,x)]
 
-                    # bb = copy.deepcopy(dist_grid)
-                    # bb[bb == 65000] = -1
-
-                    # plt.imshow(bb)
-                    # plt.title('Dist Grid')
-                    # plt.savefig("20/sol2.png")
-
 
                 if grid[y][x] == ord('.') and dist_grid[y][x] > step + 1:
                     dist_grid[y][x] = step + 1
-                if ord('z') >= grid[y][x] >= ord('a') and dist_grid[y][x] > step + 1:
-                    keyDist[grid[y][x]] = step + 1
-
 
         step += 1
 
@@ -189,4 +179,68 @@ port_jumps = portJumps(portals)
 buildDistMap(grid)
 
 
-exit()
+
+
+def buildDistMapRec(grid):
+    dist_grid = np.zeros((len(grid), len(grid[0]), 400), dtype=int)
+    dist_grid.fill(-1)
+
+    step = 0
+
+    global portals, port_jumps
+    dist_grid[portals['AA'][0][2]][0] = step
+
+    while True:
+        cur = np.where(dist_grid == step)
+
+        if len(cur[0]) == 0:
+            break
+
+        if dist_grid[portals['ZZ'][0][2]][0] > -1:
+            break
+
+        for i in range(len(cur[0])):
+
+            # check all 4 adjacent fields
+            ff=[(0,1), (1,0), (0,-1), (-1,0)]
+            for f in range(4):
+                y = cur[0][i] + ff[f][0]
+                x = cur[1][i] + ff[f][1]
+                z = cur[2][i]
+
+                
+                if (y,x) in port_jumps:
+                    # check if this is inner or outer recursion
+                    if y <= 1 or y >= len(grid) - 2 or x <=2 or x >= len(grid[0]) - 2:
+                        # this is a jump out of an grid
+                        if z == 0:
+                            print('Reached outer exit ', y, x)
+                            continue
+
+                        # start and end are treaded as walls
+                        if (y,x) == portals['AA'][0][2] or (y,x) == portals['ZZ'][0][2]:
+                            continue
+                        
+
+                        z -= 1
+                    else:
+                        # we jump into the grid
+                        z += 1
+                    
+                    (y,x) = port_jumps[(y,x)]
+
+                if grid[y][x] == ord('.') and (dist_grid[y][x][z] > step + 1 or dist_grid[y][x][z] == -1):
+                    dist_grid[y][x][z] = step + 1
+
+        step += 1
+
+    print('Solution 2: ', dist_grid[portals['ZZ'][0][2]][0])
+
+    plt.figure(figsize=(60,60))
+    for fig_id in range(16):
+        plt.subplot(4,4,fig_id+1)
+        plt.imshow(dist_grid[...,fig_id], vmin=-1, vmax=np.max(dist_grid))
+    plt.savefig("20/sol2.png")
+
+
+buildDistMapRec(grid)
